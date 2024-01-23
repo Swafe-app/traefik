@@ -3,7 +3,6 @@ version: '3'
 services:
   traefik:
     image: traefik:v2.5
-    container_name: traefik
     restart: unless-stopped
     ports:
       - "80:80"
@@ -12,22 +11,18 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./traefik.yml:/etc/traefik/traefik.yml:ro"
       - "./acme.json:/acme.json"
-    environment:
-      - EMAIL=${EMAIL}
-      - TRAEFIK_DOMAIN=${TRAEFIK_DOMAIN}
+    env_file:
+      - .env
     labels:
       - "traefik.enable=true"
-      
       # Config for Traefik dashboard
-      - "traefik.http.routers.api.rule=Host(`${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.api.rule=Host(`traefik.swafe.app`)"
       - "traefik.http.routers.api.service=api@internal"
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls.certresolver=myresolver"
       - "traefik.http.routers.api.middlewares=auth"
-
       # Auth for Traefik dashboard
       - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH_USER}:${BASIC_AUTH_PASSWORD_HASH}"
-
       # Redirect HTTP to HTTPS
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
       - "traefik.http.routers.http-catchall.entrypoints=web"

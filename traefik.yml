@@ -15,7 +15,7 @@ providers:
 certificatesResolvers:
   myresolver:
     acme:
-      email: ${EMAIL}
+      email: fabienfiette@hotmail.fr
       storage: acme.json
       httpChallenge:
         entryPoint: web
