@@ -2,36 +2,100 @@ version: '3'
 
 services:
   traefik:
-    image: traefik:v2.5
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    image: traefik:v2.5.4
+    command:
+      - "--log.level=DEBUG"   
+      - "--metrics.prometheus=true"
+      - "--providers.docker=true"
+      - "--providers.docker.watch"
     volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - /var/run/docker.sock:/var/run/docker.sock
       - "./traefik.yml:/etc/traefik/traefik.yml:ro"
       - "./acme.json:/acme.json"
-    env_file:
-      - .env
+    ports:
+      - 80:80
+      - 443:443
     labels:
       - "traefik.enable=true"
-      # Config for Traefik dashboard
       - "traefik.http.routers.api.rule=Host(`traefik.swafe.app`)"
       - "traefik.http.routers.api.service=api@internal"
       - "traefik.http.routers.api.entrypoints=websecure"
       - "traefik.http.routers.api.tls.certresolver=myresolver"
-      - "traefik.http.routers.api.middlewares=auth"
-      # Auth for Traefik dashboard
-      - "traefik.http.middlewares.auth.basicauth.users=${BASIC_AUTH_USER}:${BASIC_AUTH_PASSWORD_HASH}"
+      - "traefik.http.routers.api.middlewares=traefik-auth"
+      - "traefik.http.middlewares.traefik-auth.basicauth.users=admin:$$2y$$05$$n9dnQ5LiUuuMyGLeuvjY0OoCphCa/YdOmS5/4675mVC2PpwRHm1E."
+      - "traefik.http.middlewares.traefik-auth.basicauth.removeheader=true"
       # Redirect HTTP to HTTPS
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
       - "traefik.http.routers.http-catchall.entrypoints=web"
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-
     networks:
       - traefik-proxy
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.size=256MB'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.swafe.app`)"
+      - "traefik.http.routers.prometheus.service=prometheus"
+      - "traefik.http.routers.prometheus.middlewares=traefik-auth"
+      - "traefik.http.routers.prometheus.tls.certresolver=myresolver"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+    networks:
+      - traefik-proxy
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
+  
+  grafana:
+    image: grafana/grafana-enterprise
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+    environment:
+      GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"
+      GF_INSTALL_PLUGINS: grafana-piechart-panel
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_AUTH_PROXY_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.swafe.app`)"
+      - "traefik.http.routers.grafana.service=grafana"
+      - "traefik.http.routers.grafana.middlewares=traefik-auth"
+      - "traefik.http.routers.grafana.tls.certresolver=myresolver"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    networks:
+      - traefik-proxy
+    restart: unless-stopped
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"      
 
 networks:
   traefik-proxy:
     external: true
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

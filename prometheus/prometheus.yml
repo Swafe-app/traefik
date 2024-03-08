@@ -1,0 +1,34 @@
+global:
+  scrape_interval:     15s
+  evaluation_interval: 15s
+  external_labels:
+      monitor: 'my-project'
+
+rule_files:
+  - 'alert.rules'
+
+scrape_configs:
+  - job_name: traefik
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['traefik:8080']
+
+  - job_name: 'prometheus'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['prometheus:9090']
+
+  - job_name: 'express-app'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['express-app:3000']
+
+  - job_name: 'mariadb'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['mariadb:3306']
+
+  - job_name: 'admin-dashboard'
+    scrape_interval: 5s
+    static_configs:
+      - targets: ['admin-dashboard:3000']
